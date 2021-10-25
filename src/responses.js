@@ -1,0 +1,106 @@
+const fs = require('fs'); // pull in the file system module
+
+//Loads CSS and homepage
+const css = fs.readFileSync(`${__dirname}/../client/style.css`);
+const index = fs.readFileSync(`${__dirname}/../client/client.html`);
+
+const recipes = {};
+
+//sends info to homepage
+const respondJSON = (request, response, status, content, object) => {
+     const stringMessage = JSON.stringify(object);//Convert JSON to string for transmission
+   if (content && object){//Checks to make sure data's supposed to be sent
+       response.writeHead(status, { 'Content-Type': content});
+       response.write(stringMessage);
+   }else{
+       response.writeHead(status);
+   }
+    response.end();
+};
+
+//Gets the homepage
+const getIndex = (request, response) => {
+  response.writeHead(200, { 'Content-Type': 'text/html' });
+  response.write(index);
+  response.end();
+};
+
+
+//Gets the CSS
+const getCSS = (request, response) => {
+  response.writeHead(200, { 'Content-Type': 'text/css' });
+  response.write(css);
+  response.end();
+};
+
+const getAllRecipes = (request, response) => {
+    respondJSON(request, response, 200, 'application/json', recipes)
+   
+}
+
+
+const getRandomRecipe = (request, response) => {
+    const keys = Object.keys(recipes);
+    const random = Math.floor(Math.random() * keys.length)
+    //wrap this in an object literal so the return is consistant with getAllRecipes
+    const recipe = {key: recipes[keys[random]]};
+    respondJSON(request, response, 200, 'application/json', recipe)
+   
+}
+const addRecipe = (request, response) =>{
+      const body = [];
+
+  //If There's an error, move on
+  request.on('error', () => {
+    response.statusCode = 400;
+    response.end();
+  });
+
+  // Get Data
+  request.on('data', (chunk) => {
+    body.push(chunk);
+  });
+
+  request.on('end', () => {
+    const recipe = JSON.parse(Buffer.concat(body).toString());
+
+    //the person is missing a parameter.  Throw an error
+    if (!recipe.Name || !recipe.Ingredients || !recipe.Steps) {
+      respondJSON(request, response, 400, 'application/json', {
+        message: 'Please fill out all sections before submitting a recipe',
+        id: 'missingParams',
+      });
+    }
+    else if (recipes[recipe.Name]) {//If recipe exists
+        const ingredients = recipe.Ingredients.split("\n");
+        const steps = recipe.Steps.split("\n");
+      recipes[recipe.Name] = { Name: recipe.Name, Ingredients: ingredients, Steps: steps};
+      respondJSON(request, response, 204, null, null);
+    } else {
+        //split steps and ingredients on new lines so the data is easier to format
+        const ingredients = recipe.Ingredients.split("\n");
+        const steps = recipe.Steps.split("\n");
+      recipes[recipe.Name] = { Name: recipe.Name, Ingredients: ingredients, Steps: steps};
+      respondJSON(request, response, 201, 'application/json', {
+        message: 'Created Successfully',
+      });
+    }
+  });
+}
+
+const getMissing = (request, response) => {
+  const header = {
+      id: "notFound",
+    message: 'The page you are looking for was not found',
+  };
+  respondJSON(request, response, 404, 'application/json', header);
+};
+
+module.exports = {
+  addRecipe,
+  getRandomRecipe,
+  getAllRecipes,
+  getMissing,
+  getIndex,
+  getCSS
+};

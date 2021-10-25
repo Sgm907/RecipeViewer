@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Our simple HTTP server</title>
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+<!--^^Bootstrap CSS^^-->
+<link rel="stylesheet" type="text/css" href="/style.css">
+  
+<!--  Bootstrap script tags-->
+  <script src="https://code.jquery.com/jquery-3.4.1.slim.min.js" integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script>
+
+<!--   And a simple library to resize textareas, because according to google this isn't a feature for some reason-->
+   <script src="https://rawgit.com/jackmoore/autosize/master/dist/autosize.min.js"></script>
+    <script>
+
+    let savedObj = {};
+    //function to handle xhr response
+    const handleResponse = (xhr) => {
+	  //grab the content-type header from the response
+      //This will tell us what the server actually responded with.
+      //Again, the server can ignore our requested types.
+      const type = xhr.getResponseHeader('content-type');
+        const status = xhr.status;
+        const row = document.querySelector(".row");
+        const header = document.querySelector("#header");
+        row.innerHTML = "";
+
+        //Switch to handle various statuses
+        switch (status){
+            case 200:
+                const obj = JSON.parse(xhr.response);
+                DisplayContent(obj, row);
+                savedObj = obj;
+                header.innerHTML = "";
+                break;
+            case 201:
+                DisplayContent(savedObj, row);
+                header.innerHTML = "Recipe Successfully Submitted";
+                break;
+            case 204:
+                DisplayContent(savedObj, row);
+                header.innerHTML = "Recipe Successfully Updated";
+                break;
+            case 400:
+                row.innerHTML = 'Please fill out all fields before submitting';
+                header.innerHTML = "Invalid submission";
+                break;
+            case 404:
+                row.innerHTML = 'The page you are looking for does not exist';
+                header.innerHTML = "ERROR 404";
+                break;
+            default://stop circleci from yelling at me
+                break;
+        }  
+    };
+    
+    //function to send an xhr request
+    const sendAjax = (request, url, data) => {
+      //create a new xhr (ajax) request. 
+      //Remember that these are ASYNCHRONOUS
+      const xhr = new XMLHttpRequest();
+      //set the xhr to a GET request to a certain URL
+      xhr.open(request, url);
+        if (request === 'GET' || request == 'POST'){
+            xhr.setRequestHeader ("Accept", 'application/json');
+        }
+
+        if (request === 'POST'){
+            xhr.setRequestHeader ("Content-Type", 'application/json');
+            xhr.send(data);
+        }
+        else xhr.send();
+
+      //When the xhr loads, call handleResponse and pass the xhr object
+      xhr.onload = () => handleResponse(xhr);
+    };   
+
+     const init = () => {
+         addButton.onclick = (e) => {
+        e.preventDefault();
+
+        const recipeName = nameField.value;
+        const recipeIngredients = ingredientsField.value;
+        const recipeSteps = stepField.value;
+        
+        sendAjax('POST', '/addRecipe', JSON.stringify({ 'Name': recipeName, 'Ingredients': recipeIngredients, 'Steps': recipeSteps}));
+      };
+      
+     getAllButton.onclick = () => {
+        sendAjax('POST', '/getAllRecipes');
+      };
+         
+     getRandomButton.onclick = () =>{
+         sendAjax('POST', '/getRandomRecipe');
+     }
+     
+     autosize(document.querySelectorAll('textArea'));
+         
+         sendAjax('POST', '/getAllRecipes');//gets all content on launch
+     };
+ 
+     window.onload = init;
+      
+      const DisplayContent = (obj, row) =>{
+          const keys = Object.keys(obj)
+          for (let i = 0; i < keys.length; i++){
+            //creates a new column
+            const clone = recipeTemplate.content.cloneNode(true);
+            const resp = clone.querySelector(".col");
+            let bigString = `${JSON.stringify(obj[keys[i]].Name)}\n`;
+            bigString += "Ingredients: \n<ul>";
+            //Would include an image, don't know how
+            obj[keys[i]].Ingredients.forEach(ingredient => bigString += `<li> ${ingredient} </li>`);
+            bigString += "</ul>\n"
+            bigString += "Steps: \n<ol>";
+            obj[keys[i]].Steps.forEach(step => bigString += `<li> ${step} </li>`);
+            bigString += "</ol>\n"
+            resp.innerHTML = bigString;
+
+            row.appendChild(clone);  //appends column to row
+          }
+      }
+
+  </script>
+</head>
+<body>
+  <section id="top">
+    <h3>Recipe Viewer&trade;</h3>
+    <button id="getAllButton">Get All Recipes</button>
+    <button id="getRandomButton">Get Random Recipes</button>
+  </section>
+  <div class="container">
+      <div class="row">
+          
+      </div>
+  </div>
+  <section id="bottom">
+     <h3>Submit a Recipe:</h3>
+       <button id="addButton">Add Recipe</button>
+       <section class="container">
+     <p>Please provide a name for your recipe, a list of ingredients, and a list of steps that your recipe must follow.</p><p>  Please seperate each unique step and ingredient by pressing enter</p>
+      <form id="nameForm" method="post">
+      <label for="name" class="align">Recipe Name: </label>
+      <input class="align" id="nameField" type="text" name="name" />
+      <label for="ingredients" class="align">Recipe Ingredients: </label>
+        <textarea class="align" id="ingredientsField" name="ingredients" rows="1"></textarea>
+      <label for="steps"class="align" >Recipe Steps: </label>
+      <textarea class="align" id="stepField" name="steps" rows="1"></textarea>
+    </form>
+    </section>
+  </section>
+        <h1 id='header' class="text-center"></h1>
+  <template id="recipeTemplate">
+<!-- Template to display content in.  Rn this is just a paragraph tag, will have more info later -->
+          <p class=col></p>
+  </template>
+</body>
+</html>
